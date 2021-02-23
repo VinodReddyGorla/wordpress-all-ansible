@@ -1,0 +1,12 @@
+---
+- hosts: wordpress
+  user: centos
+  become: yes
+  become_method: sudo
+  become_user: root
+  any_errors_fatal: true
+  roles:
+
+   - wordpress-centos
+
+

@@ -1,0 +1,12 @@
+---
+- hosts: wordpress
+  user: sog
+  become: yes
+  become_method: sudo
+  become_user: root
+  any_errors_fatal: true
+  roles:
+
+   - wordpress-ubuntu 
+
+

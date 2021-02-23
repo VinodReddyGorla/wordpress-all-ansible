@@ -1,0 +1,99 @@
+---
+# tasks file for wordpress-ubuntu
+  - name: Update yum cache
+    yum: update_cache=yes 
+    become: yes
+  
+  - name: Install required software
+    yum: name=httpd,mariadb-server,mariadb,unzip,wget,MySQL-python state=present
+    become: yes
+  
+  - name: Install php extensions
+    yum: name=php,php-mysql,php-gd,php-ldap,php-odbc,php-pear,php-xml,php-xmlrpc,php-mbstring,php-snmp,php-soap,curl state=present
+    become: yes
+
+  - name: restart mariadb
+    service: name=mariadb state=restarted enabled=yes
+    become: yes
+ 
+  - name: setting selinux permissive
+    selinux:
+     policy: targeted
+     state: permissive
+    become: yes
+
+  - name: Create mysql database
+    mysql_db: name={{ wp_mysql_db }} state=present
+    become: yes
+
+  - name: Create mysql user
+    mysql_user: 
+     name={{ wp_mysql_user }} 
+     password={{ wp_mysql_password }} 
+     priv=*.*:ALL
+    become: yes  
+
+  - name: setting firewalld
+    firewalld:
+      zone: public
+      service: "{{ item }}"
+      permanent: true
+      state: enabled
+    with_items:
+        - http
+        - https
+    become: yes
+
+  - name: setting selinux permissive
+    selinux:
+      policy: targeted
+      state: permissive
+    become: yes
+
+  - name: Download WordPress
+    get_url: 
+      url=https://wordpress.org/latest.zip 
+      dest=/tmp/latest.zip
+      validate_certs=no
+  
+  - name: Extract WordPress
+    unarchive: src=/tmp/latest.zip  dest=/var/www/html copy=no
+    become: yes
+  - name: change wordpress permessions
+    file:
+     path: /var/www/html/wordpress
+     owner: apache
+     group: apache
+     mode: 0775
+    become: yes
+
+  - name: Update default Apache site
+    become: yes
+    lineinfile:
+      dest=/etc/httpd/conf/httpd.conf
+      regexp="(.)+DocumentRoot /var/www/html"
+      line="DocumentRoot /var/www/html/wordpress" 
+
+  - name: Update WordPress config file
+    lineinfile:
+      dest=/var/www/html/wordpress/wp-config-sample.php
+      regexp="{{ item.regexp }}"
+      line="{{ item.line }}"
+    with_items:
+     - {'regexp': "define\\('DB_NAME', '(.)+'\\);", 'line': "define('DB_NAME', '{{wp_mysql_db}}');"}        
+     - {'regexp': "define\\('DB_USER', '(.)+'\\);", 'line': "define('DB_USER', '{{wp_mysql_user}}');"}        
+     - {'regexp': "define\\('DB_PASSWORD', '(.)+'\\);", 'line': "define('DB_PASSWORD', '{{wp_mysql_password}}');"}
+    become: yes
+
+  - name:  copying WordPress config file wp-config-sample.php to wp-config.php
+    command: cp -r /var/www/html/wordpress/wp-config-sample.php   /var/www/html/wordpress/wp-config.php
+    become: yes
+
+  - name: restart firewalld
+    service: name=firewalld state=restarted
+    become: yes
+
+  - name: restart httpd
+    service: name=httpd state=restarted
+    become: yes
+
